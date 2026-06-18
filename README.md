@@ -1,2 +1,2 @@
 # CLIFC
-IFC tools with a command line interface
+[IFC](https://technical.buildingsmart.org/standards/ifc/) tools in a command line interface
