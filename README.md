@@ -1,2 +1,2 @@
-# ifc-param-checker
-IFC parameter Checker
+# CLIFC
+IFC tools with a command line interface
