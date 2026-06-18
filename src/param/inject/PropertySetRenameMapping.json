@@ -1,0 +1,37 @@
+{
+  "UTI": {
+    "PropertySets" : {
+      "FAGLIKAN_ALMENNT" : "Verkupplýsingar"
+    },
+    "Properties" :  {
+      "VERKHEITI": "Verkheiti",
+      "VERKNR": "Verknumer",
+      "DAGSINNSETNINGAR": "Dags",
+      "FM_INN": "Hönnudur",
+      "LOD": "LOD",
+      "VERKSVAEDI": "Verksvaedi",
+      "VERKFASI": "Verkfasi"
+    },
+    "Values" : {
+      "Forhönnun" : "PD"
+    }
+  },
+  "PWR": {
+    "PropertySets" : {
+      "FAGLIKAN_ALMENNT" : "Verkupplýsingar"
+    },
+    "Properties" :  {
+      "VERKHEITI": "Verkheiti",
+      "VERKNR": "Verknumer",
+      "DAGSINNSETNINGAR": "Dags",
+      "FM_INN": "Hönnudur",
+      "LOD": "LOD",
+      "VERKSVAEDI": "Verksvaedi",
+      "VERKFASI": "Verkfasi"
+    },
+    "Values" : {
+      "Forhönnun" : "PD"
+    }
+  }
+}
+  

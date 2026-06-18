@@ -1,3 +1,4 @@
 ifcopenshell
 shapely
 tqdm
+openpyxl
