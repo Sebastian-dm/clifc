@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-import argparse
 import ifcopenshell
-from ifcopenshell.file import file as IfcFile
 import ifcopenshell.geom
+from ifcopenshell.file import file as IfcFile
 from shapely.geometry import box, Point
 from tqdm import tqdm
-import click
 
 try:
     from ifcopenshell.util import placement as ifc_placement
@@ -14,28 +12,6 @@ except Exception:
 
 
 class CropService():
-
-    def parse_args(self):
-        parser = argparse.ArgumentParser(
-            description="Filter IFC by deleting elements outside a rectangular XY boundary"
-        )
-        parser.add_argument("input_ifc", help="Path to input IFC file")
-        parser.add_argument("output_ifc", help="Path to output IFC file")
-        parser.add_argument(
-            "--p1",
-            nargs=2,
-            type=float,
-            required=True,
-            help="First corner (X Y) of rectangle (world coordinates)",
-        )
-        parser.add_argument(
-            "--p2",
-            nargs=2,
-            type=float,
-            required=True,
-            help="Opposite corner (X Y) of rectangle (world coordinates)",
-        )
-        return parser.parse_args()
 
     def get_project_offset(self, ifc):
         ctxs = ifc.by_type("IfcGeometricRepresentationContext")
@@ -118,7 +94,7 @@ class CropService():
             })
         return True  # If we cannot determine, remove by default
 
-    def crop_file(self, input_file, p1, p2, output_file=None):
+    def crop_file(self, input_file, p1, p2, output_file=None, verbose=False):
         if output_file is None:
             output_file = input_file.replace(".ifc", "_cropped.ifc")
 
@@ -151,15 +127,12 @@ class CropService():
 
         ifc.write(output_file)
 
-        print("Boundary (local IFC coords):", boundary_bounds)
-        print("\nFirst up to 10 debug entries (element vs boundary):")
-        for d in debug_list:
-            print(d)
-
-        print("\nConcluding Report:")
+        print("Crop bounds:", boundary_bounds)
+        if verbose:
+            print("\nFirst up to 10 debug entries (element vs boundary):")
+            for d in debug_list:
+                print(d)
+            print("\n")
         print(f"Products scanned: {len(products)}")
         print(f"Elements kept inside boundary: {inside_count}")
         print(f"Elements deleted outside boundary: {outside_count}")
-
-if __name__ == "__main__":
-    CropService().crop_file(None, None, None)
