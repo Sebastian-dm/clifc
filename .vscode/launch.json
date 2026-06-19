@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "clifc.cli",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "crop",
+                "models/KKU_K19_S1_N20.ifc",
+                "627570.000 1147840.000",
+                "627610.000 1147870.000",
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        }
+    ]
+}

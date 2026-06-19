@@ -1,4 +1,0 @@
-ifcopenshell
-shapely
-tqdm
-openpyxl

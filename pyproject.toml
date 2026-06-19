@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clifc"
+version = "0.1.0"
+
+dependencies = [
+    "click",
+    "requests",
+    "ifcopenshell",
+    "shapely",
+    "tqdm",
+    "openpyxl",
+    "PyYAML",
+    "jsonschema",
+    "jinja2",
+    "rich",
+]
+
+[project.scripts]
+clifc = "clifc.cli:cli"
