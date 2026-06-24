@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "CLI",
+            "name": "CLI: crop",
             "type": "debugpy",
             "request": "launch",
             "module": "clifc.cli",
@@ -15,6 +15,23 @@
                 "models/KKU_K19_S1_N20.ifc",
                 "627570.000 1147840.000",
                 "627610.000 1147870.000",
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "CLI: propcheck",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "clifc.cli",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "propcheck",
+                "models/",
+                "--rulespath","config/rulesExample.yaml",
+                "--csv_out",
+                "--all",
+                "--verbose"
             ],
             "justMyCode": false,
             "console": "integratedTerminal"

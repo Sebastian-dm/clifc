@@ -12,15 +12,40 @@ import ifcopenshell
 from ifcopenshell.file import file as IfcFile
 from ifcopenshell.util.element import get_psets
 
-
+from importlib.resources import files
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 class PropCheckService:
 
-    def __init__(self, input_file):
-        self.ifc = ifcopenshell.open(input_file)
-        if not isinstance(self.ifc, IfcFile):
-            raise TypeError("Expected an IFC file model")
-        self.ifcFileName = input_file.split("/")[-1]
+    def __init__(self, ifcFilePaths, rulesPath, schemaPath, templatePath,
+                 outputPath=None,
+                 outputCsv=False,
+                 includePassingRows=False,
+                 verbose=False):
+        self.ifcFilePaths = ifcFilePaths
+        self.rules = self.load_rules(rulesPath)
+        self.schemaPath = self.load_schema(schemaPath)
+        self.templatePath = templatePath
+        self.outputPaths = [outputPath]*len(ifcFilePaths) if outputPath else [os.path.dirname(p) for p in ifcFilePaths]
+        self.outputCsv = outputCsv
+        self.includePassingRows = includePassingRows
+        self.verbose = verbose
+        
+        # Validate rules against schema
+        try:
+            validate(instance=self.rules, schema=self.schemaPath)
+        except FileNotFoundError:
+            print(f"Schema file '{self.schemaPath}' not found; skipping validation.")
+        except ValidationError as e:
+            print("Rules file does not conform to schema:")
+            print(e)
+            sys.exit(3)
+
+        # Add a hash of the rules file for reference in reports
+        try:
+            self.rules["_hash"] = self.hash_file(rulesPath)
+        except Exception:
+            self.rules["_hash"] = ""
 
     def load_rules(self, path: str) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
@@ -36,19 +61,6 @@ class PropCheckService:
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
         return h.hexdigest()[:12]
-
-    def collect_ifc_files(self, paths: List[str]) -> List[str]:
-        ifc_files: List[str] = []
-        for p in paths:
-            path = Path(p)
-            if path.is_file() and path.suffix.lower() == ".ifc":
-                ifc_files.append(str(path))
-            elif path.is_dir():
-                for file in path.rglob("*.ifc"):
-                    ifc_files.append(str(file))
-            else:
-                print(f"[yellow]Warning: path '{p}' is not an .ifc file or directory; skipping.[/yellow]")
-        return sorted(ifc_files)
 
     def normalize_value(self, val: Any) -> Optional[str]:
         if val is None:
@@ -110,23 +122,23 @@ class PropCheckService:
                 return "fail"
         return None
 
-    def run(self, ifc_files: List[str], rules: Dict[str, Any], html_out: Optional[str], csv_out: Optional[str], csv_all: bool) -> int:
-        case_sensitive = rules.get("defaults", {}).get("case_sensitive", False)
-        missing_policy = rules.get("defaults", {}).get("when_missing_property", "fail")
-        ignored_entities = set(e.lower() for e in rules.get("defaults", {}).get("ignoredEntities", []))
+    def propcheck(self) -> int:
+        case_sensitive = self.rules.get("defaults", {}).get("case_sensitive", False)
+        missing_policy = self.rules.get("defaults", {}).get("when_missing_property", "fail")
+        ignored_entities = set(e.lower() for e in self.rules.get("defaults", {}).get("ignoredEntities", []))
 
         violations: List[Dict[str, Any]] = []
         passes_count = 0
         by_rule: Dict[str, Dict[str, Any]] = {}
         prop_values: Dict[str, Dict[str, set]] = {}
 
-        for rule in rules.get("rules", []):
+        for rule in self.rules.get("rules", []):
             rid, title = rule["id"], rule["title"]
             by_rule[rid] = {"title": title, "checked": 0, "pass": 0, "warn": 0, "fail": 0}
 
         total_objects = 0
 
-        for fpath in ifc_files:
+        for fpath in self.ifcFilePaths:
             print(f"[blue]Processing file:[/blue] {fpath}")
             try:
                 model = ifcopenshell.open(fpath)
@@ -134,7 +146,7 @@ class PropCheckService:
                 print(f"[red]Failed to open {fpath}: {e}[/red]")
                 continue
 
-            for rule in rules.get("rules", []):
+            for rule in self.rules.get("rules", []):
                 rid = rule["id"]
                 title = rule["title"]
                 targets = rule.get("targetEntities", [])
@@ -166,7 +178,7 @@ class PropCheckService:
                         if severity is None:
                             by_rule[rid]["pass"] += 1
                             passes_count += 1
-                            if csv_out and csv_all:
+                            if self.outputCsv and self.includePassingRows:
                                 violations.append({
                                     "file": fpath, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                     "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
@@ -187,71 +199,42 @@ class PropCheckService:
                             prop_values[prop_key]["fail"].add(actual_val or "")
 
         summary = {
-            "files": len(ifc_files),
+            "files": len(self.ifcFilePaths),
             "objects_checked": total_objects,
             "violations": sum(1 for v in violations if v["severity"] == "fail"),
             "warnings": sum(1 for v in violations if v["severity"] == "warn"),
             "passes": passes_count,
         }
 
-        if csv_out:
+        # Output CSV report
+        if self.outputCsv:
             fieldnames = ["file", "rule", "ruleTitle", "entity", "globalId", "name", "path", "property", "expected", "actual", "severity"]
-            os.makedirs(os.path.dirname(csv_out) or ".", exist_ok=True)
-            with open(csv_out, "w", encoding="utf-8", newline="") as fcsv:
+            
+            csvPath = os.path.join(self.outputPaths[0], "propcheck_report.csv")
+            os.makedirs(os.path.dirname(csvPath) or ".", exist_ok=True)
+            with open(csvPath, "w", encoding="utf-8", newline="") as fcsv:
                 writer = csv.DictWriter(fcsv, fieldnames=fieldnames)
                 writer.writeheader()
                 for row in violations:
-                    if csv_all or row["severity"] != "pass":
+                    if self.includePassingRows or row["severity"] != "pass":
                         writer.writerow(row)
 
-        if html_out:
-            env = Environment(
-                loader=FileSystemLoader(os.path.dirname(__file__)),
-                autoescape=select_autoescape(["html", "xml"]), enable_async=False,
-            )
-            tpl = env.get_template("report.html.j2")
-            meta = {
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "tool_version": "0.3.0",
-                "rules_hash": rules.get("_hash", ""),
-            }
-            html = tpl.render(summary=summary, by_rule=by_rule, violations=[v for v in violations if v["severity"] != "pass"], meta=meta, prop_values=prop_values)
-            os.makedirs(os.path.dirname(html_out) or ".", exist_ok=True)
-            with open(html_out, "w", encoding="utf-8") as fh:
-                fh.write(html)
+        # Output HTML report
+        env = Environment(
+            loader=PackageLoader("clifc", "templates"),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+        tpl = env.get_template("propcheck.html.j2")
+        meta = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tool_version": "0.3.0",
+            "rules_hash": self.rules.get("_hash", ""),
+        }
+        html = tpl.render(summary=summary, by_rule=by_rule, violations=[v for v in violations if v["severity"] != "pass"], meta=meta, prop_values=prop_values)
+        
+        htmlPath = os.path.join(self.outputPaths[0], "propcheck_report.html")
+        os.makedirs(os.path.dirname(htmlPath) or ".", exist_ok=True)
+        with open(htmlPath, "w", encoding="utf-8") as fh:
+            fh.write(html)
 
-        return 1 if summary["violations"] > 0 else 0
-
-    def propcheck(self):
-        ap = argparse.ArgumentParser(description="IFC rule checker (properties only)")
-        ap.add_argument("paths", nargs="+", help="IFC files and/or directories to scan")
-        ap.add_argument("--rules", required=True, help="YAML rules file")
-        ap.add_argument("--schema", default="rules.schema.json", help="JSON schema for rules validation")
-        ap.add_argument("--out-html", dest="out_html", required=False, help="Path to HTML report")
-        ap.add_argument("--out-csv", dest="out_csv", required=False, help="Path to CSV output")
-        ap.add_argument("--csv-all", action="store_true", help="Include passing rows in CSV")
-        args = ap.parse_args()
-
-        ifc_files = self.collect_ifc_files(args.paths)
-        if not ifc_files:
-            print("[red]Error: No .ifc files found in the specified paths.[/red]")
-            sys.exit(1)
-
-        rules = self.load_rules(args.rules)
-        try:
-            schema = self.load_schema(args.schema)
-            validate(instance=rules, schema=schema)
-        except FileNotFoundError:
-            print(f"[yellow]Schema file '{args.schema}' not found; skipping validation.[/yellow]")
-        except ValidationError as e:
-            print("[red]Rules file does not conform to schema:[/red]")
-            print(e)
-            sys.exit(3)
-
-        try:
-            rules["_hash"] = self.hash_file(args.rules)
-        except Exception:
-            rules["_hash"] = ""
-
-        exit_code = self.run(ifc_files, rules, args.out_html, args.out_csv, args.csv_all)
-        sys.exit(exit_code)
+        return 0
