@@ -8,25 +8,18 @@ defaults:
   ignoredEntities: [IfcOpeningElement]
 
 rules:
-  - id: AllCCS
-    title: Alle objekter skal have CCSTypeID
+  - id: Identifikation
+    title: Alle objekter skal have Identifikation
     targetEntities: [IfcElement]
     checks:
-      - property: "KKegenskaber.CCSTypeID"
+      - property: "KKU.Identifikation"
         required: true
-        pattern: '.*%[A-Z]{3}.*[0-9]{2}$'
+        pattern: "^[A-Z]{1,}[0-9]{2}$"
         
-  - id: AllPhasing
-    title: Alle objekter skal have Phasing
+  - id: Lokation
+    title: Alle objekter skal have Lokation
     targetEntities: [IfcElement]
     checks:
-      - property: "KKegenskaber.Phasing"
+      - property: "KKU.Lokation"
         required: true
-        pattern: "^(New Construction|Existing)$"
-
-  - id: FloorType
-    title: Gulve skal have Gulvtype
-    targetEntities: [IfcSlab]
-    checks:
-      - property: "KKegenskaber.Gulvtype"
-        required: true
+        pattern: "^(L00|L10|L20|L21|L22|L23|L30|L40|L50)$"

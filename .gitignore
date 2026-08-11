@@ -1,11 +1,18 @@
 # Data files for testing and results
 
 models/
-reports/
+*.ifc
 
 *.bat
+!test/*.bat
+
+test/*.html
+
+
+
 *.yaml
 !rulesExample.yaml
+
 
 
 # Byte-compiled / optimized / DLL files
