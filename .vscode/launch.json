@@ -27,11 +27,41 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "propcheck",
-                "models/",
                 "--rulespath","config/rulesExample.yaml",
                 "--csv_out",
                 "--all",
-                "--verbose"
+                "--verbose",
+                "models/"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "CLI: valueextract",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "clifc.cli",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "valueextract",
+                "-p","KKU.Identifikation",
+                "-o","test/property_values.txt",
+                "models/"
+            ],
+            "justMyCode": false,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "CLI: merge",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "clifc.cli",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "merge",
+                "-o","test/merged.ifc",
+                "models/KKU_K23_S1_N01.ifc",
+                "models/KKU_K23_S2_N01.ifc"
             ],
             "justMyCode": false,
             "console": "integratedTerminal"

@@ -1,3 +1,4 @@
+@echo off
 REM Usage: cli.py crop [OPTIONS] INPUT_FILE P1 P2
 REM   Crop an IFC file using two rectangle corners.
 REM   P1 and P2 should be given as quoted coordinate pairs:
@@ -7,7 +8,6 @@ REM   -o, --output_file TEXT  Output IFC file
 REM   -v, --verbose           Enable verbose output
 REM   --help                  Show this message and exit.
 
-@echo off
 cd /d "%~dp0/.."
 call ".venv/Scripts/activate"
 python "src/clifc/cli.py" crop^

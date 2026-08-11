@@ -1,3 +1,4 @@
+@echo off
 REM Usage: cli.py propcheck [OPTIONS] [PATHS]...
 REM   Check IFC files against property rules defined in a YAML file.
 REM Options:
@@ -10,7 +11,6 @@ REM   -a, --all                Include all (also passing) rows in CSV
 REM   -v, --verbose            Enable verbose output
 REM   --help                   Show this message and exit.
 
-@echo off
 cd /d "%~dp0/.."
 call ".venv/Scripts/activate"
 python "src/clifc/cli.py" propcheck^

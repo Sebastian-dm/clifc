@@ -1,23 +1,9 @@
-#!/usr/bin/env python3
-"""
-Extract values of a given IFC property (by property name) from all IFC files in a folder.
-
-Example:
-  python extract_ifc_property_values.py \
-    --folder "C:/in/ifcs" \
-    --modelFolder "C:/in/ifcs/models" \
-    --propertyName "Reference" \
-    --out "C:/out/values.txt"
-"""
-
 from __future__ import annotations
 
-import argparse
-import os
 import sys
 import re
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Dict, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import ifcopenshell
 import openpyxl
@@ -30,7 +16,16 @@ def _iter_ifc_files(root: Path) -> Iterable[Path]:
             yield p
 
 
-def _stringify_ifc_value(nominal_value: Any) -> str:
+def _property_string_treatment(value: str) -> str:
+    value = value.replace("[L]%", "")
+    if len(value) > 2:
+        value = value[:-2]
+    value = value.replace(".", "")
+    value = re.sub(r"\d", "", value)
+    return value
+
+
+def _stringify_ifc_value(nominal_value: Any, normalize_wrapped_values: bool = True) -> str:
     """
     Convert IFC nominal value objects / python primitives to a stable string.
     ifcopenshell often returns:
@@ -41,18 +36,19 @@ def _stringify_ifc_value(nominal_value: Any) -> str:
         return ""
     if hasattr(nominal_value, "wrappedValue"):
         v = getattr(nominal_value, "wrappedValue")
-        return "" if v is None else _propertyStringTreatment(v)
+        if v is None:
+            return ""
+        out = str(v)
+        return _property_string_treatment(out) if normalize_wrapped_values else out
     return str(nominal_value)
 
-def _propertyStringTreatment(p):
-    p = p.replace("[L]%","")
-    p = p[:-2]
-    p = p.replace(".","")
-    p = re.sub(r"\d","", p)
-    return str(p)
 
-
-def _extract_property_values_from_object(obj, pset_name: str, prop_name: str):
+def _extract_property_values_from_object(
+    obj,
+    pset_name: str,
+    prop_name: str,
+    normalize_wrapped_values: bool = True,
+) -> List[str]:
     values = []
 
     rels = getattr(obj, "IsDefinedBy", None)
@@ -75,39 +71,34 @@ def _extract_property_values_from_object(obj, pset_name: str, prop_name: str):
                 continue
 
             if prop.is_a("IfcPropertySingleValue"):
-                values.append(_stringify_ifc_value(prop.NominalValue))
+                values.append(_stringify_ifc_value(prop.NominalValue, normalize_wrapped_values))
 
             elif prop.is_a("IfcPropertyEnumeratedValue"):
                 values.append(
-                    ";".join(_stringify_ifc_value(v) for v in prop.EnumerationValues or [])
+                    ";".join(
+                        _stringify_ifc_value(v, normalize_wrapped_values)
+                        for v in prop.EnumerationValues or []
+                    )
                 )
 
             elif prop.is_a("IfcPropertyListValue"):
                 values.append(
-                    ";".join(_stringify_ifc_value(v) for v in prop.ListValues or [])
+                    ";".join(_stringify_ifc_value(v, normalize_wrapped_values) for v in prop.ListValues or [])
                 )
 
     return values
 
 
-def extract_values_from_ifc_file(ifc_path: Path, property_name: str) -> List[str]:
-    try:
-        model = ifcopenshell.open(str(ifc_path))
-    except Exception as e:
-        print(f"[WARN] Failed to open: {ifc_path} ({e})", file=sys.stderr)
-        return []
+def _parse_property_name(property_name: str) -> Tuple[str, str]:
+    if not property_name or "." not in property_name:
+        raise ValueError("propertyName must be in format 'PsetName.PropertyName'.")
+    pset_name, prop_name = property_name.split(".", 1)
+    pset_name = pset_name.strip()
+    prop_name = prop_name.strip()
+    if not pset_name or not prop_name:
+        raise ValueError("propertyName must be in format 'PsetName.PropertyName'.")
+    return pset_name, prop_name
 
-    found: List[str] = []
-    # By spec, most element-like objects are IfcObjectDefinition; this covers elements, types, spatial, etc.
-    for obj in model.by_type("IfcObjectDefinition"):
-        try:
-            found.extend(_extract_property_values_from_object(obj, property_name.split(".")[0], property_name.split(".")[1]))
-        except Exception as e:
-            # Keep going; IFCs can contain oddities
-            oid = getattr(obj, "GlobalId", None)
-            print(f"[WARN] Error on object {oid} in {ifc_path.name}: {e}", file=sys.stderr)
-
-    return found
 
 def load_css_hovedbegreb_lookup(
     xlsx_path: str | Path,
@@ -186,70 +177,108 @@ def match_and_concat(
     return f"{property_value}{sep}{hovedbegreb}", hovedbegreb
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Extract IFC property values from all IFC files in a folder.")
-    ap.add_argument("--folder", required=True, help="Root folder containing IFC files (scanned recursively).")
-    ap.add_argument("--modelFolder", required=True, help="Model folder argument (accepted as input; used as a subfolder if relative).")
-    ap.add_argument("--propertyName", required=True, help="Property name to look for (exact match).")
-    ap.add_argument("--out", default="property_values.txt", help="Output txt file path.")
-    ap.add_argument("--dedupe", action="store_true", help="Remove duplicate values (preserves first-seen order).")
-    ap.add_argument("--skip-empty", action="store_true", help="Skip empty-string values.")
-    args = ap.parse_args()
+class ValueExtractService:
+    def __init__(
+        self,
+        property_name: str,
+        dedupe: bool = False,
+        skip_empty: bool = False,
+        ccs_lookup_path: Optional[str] = None,
+        concat_separator: str = " ",
+        default_hovedbegreb: str = "",
+        normalize_wrapped_values: bool = True,
+    ):
+        self.pset_name, self.prop_name = _parse_property_name(property_name)
+        self.dedupe = dedupe
+        self.skip_empty = skip_empty
+        self.concat_separator = concat_separator
+        self.default_hovedbegreb = default_hovedbegreb
+        self.normalize_wrapped_values = normalize_wrapped_values
+        self.lookup = (
+            load_css_hovedbegreb_lookup(ccs_lookup_path)
+            if ccs_lookup_path
+            else None
+        )
 
-    folder = Path(args.folder).expanduser().resolve()
+    def extract_values_from_ifc_file(self, ifc_path: Path) -> List[str]:
+        try:
+            model = ifcopenshell.open(str(ifc_path))
+        except Exception as e:
+            print(f"[WARN] Failed to open: {ifc_path} ({e})", file=sys.stderr)
+            return []
 
-    # Interpret modelFolder: if it's relative, treat it as relative to --folder; else use as given.
-    model_folder = Path(args.modelFolder).expanduser()
-    if not model_folder.is_absolute():
-        model_folder = (folder / model_folder).resolve()
-    else:
-        model_folder = model_folder.resolve()
+        found: List[str] = []
+        # By spec, most element-like objects are IfcObjectDefinition; this covers elements, types, spatial, etc.
+        for obj in model.by_type("IfcObjectDefinition"):
+            try:
+                found.extend(
+                    _extract_property_values_from_object(
+                        obj,
+                        self.pset_name,
+                        self.prop_name,
+                        self.normalize_wrapped_values,
+                    )
+                )
+            except Exception as e:
+                # Keep going; IFCs can contain oddities.
+                oid = getattr(obj, "GlobalId", None)
+                print(f"[WARN] Error on object {oid} in {ifc_path.name}: {e}", file=sys.stderr)
 
-    # Decide where to scan:
-    # - If modelFolder exists and is inside folder (or user wants that), scan modelFolder
-    # - Else scan folder
-    scan_root = model_folder if model_folder.exists() else folder
+        return found
 
-    if not scan_root.exists():
-        print(f"[ERROR] Scan root does not exist: {scan_root}", file=sys.stderr)
-        return 2
+    def extract_values(self, ifc_paths: List[str]) -> List[str]:
+        all_values: List[str] = []
+        for raw_path in ifc_paths:
+            ifc_path = Path(raw_path)
+            all_values.extend(self.extract_values_from_ifc_file(ifc_path))
 
-    out_path = Path(args.out).expanduser()
-    if not out_path.is_absolute():
-        out_path = (Path.cwd() / out_path).resolve()
+        if self.skip_empty:
+            all_values = [v for v in all_values if v != ""]
 
-    all_values: List[str] = []
-    ifc_files = list(_iter_ifc_files(scan_root))
-    if not ifc_files:
-        print(f"[WARN] No IFC files found under: {scan_root}", file=sys.stderr)
+        if self.dedupe:
+            seen = set()
+            deduped: List[str] = []
+            for value in all_values:
+                if value in seen:
+                    continue
+                seen.add(value)
+                deduped.append(value)
+            all_values = deduped
 
-    for ifc_path in ifc_files:
-        vals = extract_values_from_ifc_file(ifc_path, args.propertyName)
-        all_values.extend(vals)
+        return sorted(all_values)
 
-    if args.skip_empty:
-        all_values = [v for v in all_values if v != ""]
+    def format_output_values(self, values: List[str]) -> List[str]:
+        if not self.lookup:
+            return values
 
-    if args.dedupe:
-        seen = set()
-        deduped: List[str] = []
-        for v in all_values:
-            if v in seen:
-                continue
-            seen.add(v)
-            deduped.append(v)
-        all_values = deduped
+        out_values: List[str] = []
+        for value in values:
+            value_out, _ = match_and_concat(
+                value,
+                self.lookup,
+                sep=self.concat_separator,
+                default_hovedbegreb=self.default_hovedbegreb,
+            )
+            out_values.append(value_out)
+        return out_values
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8", newline="\n") as f:
-        for v in sorted(all_values):
-            lookup = load_css_hovedbegreb_lookup(r"CCS.xlsx")
-            vOut, hov = match_and_concat(v, lookup)
-            f.write(f"{vOut}\n")
+    def write_output(self, output_path: str, values: List[str]) -> Path:
+        out_path = Path(output_path).expanduser()
+        if not out_path.is_absolute():
+            out_path = (Path.cwd() / out_path).resolve()
 
-    print(f"Wrote {len(all_values)} value(s) to: {out_path}")
-    return 0
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8", newline="\n") as f:
+            for value in values:
+                f.write(f"{value}\n")
+        return out_path
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    def run(self, ifc_paths: List[str], output_path: str) -> Dict[str, Any]:
+        values = self.extract_values(ifc_paths)
+        output_values = self.format_output_values(values)
+        written_path = self.write_output(output_path, output_values)
+        return {
+            "values": output_values,
+            "count": len(output_values),
+            "output_path": str(written_path),
+        }
