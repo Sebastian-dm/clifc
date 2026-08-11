@@ -14,4 +14,4 @@ cli.add_command(propcheck)
 cli.add_command(valueextract)
 
 if __name__ == "__main__":
-    cli()
+    cli(prog_name="clifc")
