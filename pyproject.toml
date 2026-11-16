@@ -9,7 +9,7 @@ version = "0.1.0"
 dependencies = [
     "click",
     "requests",
-    "ifcopenshell",
+    "ifcopenshell>=0.8.5,<0.9",
     "shapely",
     "tqdm",
     "openpyxl",
