@@ -19,17 +19,17 @@ def propcheck(paths, rulespath, outputfolder, schemapath, templatepath, csv_out,
     """Check IFC files against property rules defined in a YAML file.
     """
     if paths is None or len(paths) == 0:
-        print("[red]Error: No paths provided for .ifc files or directories.[/red]")
+        print("Error: No paths provided for .ifc files or directories.")
         sys.exit(1)
     ifcFilePaths = DirectoryHelper().collect_ifc_file_paths(paths)
     if not ifcFilePaths:
-        print("[red]Error: No .ifc files found in the specified paths.[/red]")
+        print("Error: No .ifc files found in the specified paths.")
         sys.exit(1)
     if rulespath and not os.path.isfile(rulespath):
-        print(f"[red]Error: Rules file '{rulespath}' not found.[/red]")
+        print(f"Error: Rules file '{rulespath}' not found.")
         sys.exit(2)
     if outputfolder and not os.path.isdir(outputfolder):
-        print(f"[red]Error: Output folder '{outputfolder}' does not exist.[/red]")
+        print(f"Error: Output folder '{outputfolder}' does not exist.")
         sys.exit(3)
     if schemapath is None:
         schemapath = files("clifc.schemas").joinpath("propcheck.schema.json")
