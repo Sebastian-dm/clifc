@@ -170,6 +170,10 @@ class PropCheckService:
                         prop = chk["property"]
                         actual_val = self.resolve_property(elem, prop, case_sensitive)
                         severity = self.check_value(actual_val, chk, missing_policy)
+                        if "pattern" in chk and "allowedValues" not in chk:
+                            expected = json.dumps(chk["pattern"], ensure_ascii=False)
+                        else:
+                            expected = json.dumps({k: chk[k] for k in ("allowedValues", "pattern") if k in chk}, ensure_ascii=False)
 
                         by_rule[rid]["checked"] += 1
                         prop_key = f"{rid} {prop}"
@@ -184,7 +188,7 @@ class PropCheckService:
                                     "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                     "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
                                     "path": "", "property": prop,
-                                    "expected": json.dumps({k: chk[k] for k in ("allowedValues", "pattern") if k in chk}, ensure_ascii=False),
+                                    "expected": expected,
                                     "actual": actual_val, "severity": "pass"
                                 })
                             prop_values[prop_key]["pass"].add(actual_val or "")
@@ -194,7 +198,7 @@ class PropCheckService:
                                 "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                 "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
                                 "path": "", "property": prop,
-                                "expected": json.dumps({k: chk[k] for k in ("allowedValues", "pattern") if k in chk}, ensure_ascii=False),
+                                "expected": expected,
                                 "actual": actual_val, "severity": severity
                             })
                             prop_values[prop_key]["fail"].add(actual_val or "")
