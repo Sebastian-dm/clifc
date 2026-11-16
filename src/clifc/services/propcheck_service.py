@@ -180,7 +180,7 @@ class PropCheckService:
                             passes_count += 1
                             if self.outputCsv and self.includePassingRows:
                                 violations.append({
-                                    "file": fpath, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
+                                    "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                     "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
                                     "path": "", "property": prop,
                                     "expected": json.dumps({k: chk[k] for k in ("allowedValues", "pattern") if k in chk}, ensure_ascii=False),
@@ -190,7 +190,7 @@ class PropCheckService:
                         else:
                             by_rule[rid][severity] += 1
                             violations.append({
-                                "file": fpath, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
+                                "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                 "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
                                 "path": "", "property": prop,
                                 "expected": json.dumps({k: chk[k] for k in ("allowedValues", "pattern") if k in chk}, ensure_ascii=False),
@@ -206,11 +206,16 @@ class PropCheckService:
             "passes": passes_count,
         }
 
+        # Infer report names
+        reportName = "propcheck_report"
+        if len(self.ifcFilePaths) == 1:
+            reportName = Path(self.ifcFilePaths[0]).stem
+
         # Output CSV report
         if self.outputCsv:
             fieldnames = ["file", "rule", "ruleTitle", "entity", "globalId", "name", "path", "property", "expected", "actual", "severity"]
             
-            csvPath = os.path.join(self.outputPaths[0], "propcheck_report.csv")
+            csvPath = os.path.join(self.outputPaths[0], reportName+".csv")
             os.makedirs(os.path.dirname(csvPath) or ".", exist_ok=True)
             with open(csvPath, "w", encoding="utf-8", newline="") as fcsv:
                 writer = csv.DictWriter(fcsv, fieldnames=fieldnames)
@@ -231,8 +236,9 @@ class PropCheckService:
             "rules_hash": self.rules.get("_hash", ""),
         }
         html = tpl.render(summary=summary, by_rule=by_rule, violations=[v for v in violations if v["severity"] != "pass"], meta=meta, prop_values=prop_values)
+
         
-        htmlPath = os.path.join(self.outputPaths[0], "propcheck_report.html")
+        htmlPath = os.path.join(self.outputPaths[0], reportName+".html")
         os.makedirs(os.path.dirname(htmlPath) or ".", exist_ok=True)
         with open(htmlPath, "w", encoding="utf-8") as fh:
             fh.write(html)
