@@ -85,6 +85,7 @@
 	  <th>IfcEntity</th>
 	  <th>Entity GlobalId</th>
       <th>Entity Name</th>
+      <th>Presentation layer</th>
 	  <th>Property</th>
       <th>Allowed value pattern</th>
 	  <th>Actual value</th>
@@ -98,6 +99,7 @@
         <td>{{ v.entity }}</td>
         <td>{{ v.globalId }}</td>
         <td>{{ v.name or '' }}</td>
+        <td>{{ v.layer }}</td>
         <td>{{ v.property }}</td>
         <td><pre style="white-space:pre-wrap;margin:0">{{ v.expected }}</pre></td>
         <td><pre style="white-space:pre-wrap;margin:0">{{ v.actual }}</pre></td>

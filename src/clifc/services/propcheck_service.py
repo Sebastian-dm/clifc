@@ -122,6 +122,19 @@ class PropCheckService:
                 return "fail"
         return None
 
+    @staticmethod
+    def element_layers(elem, layer_index: Dict[int, List[str]]) -> str:
+        """Return presentation layer names for an element, using a per-file index built from IfcPresentationLayerAssignment."""
+        representation = getattr(elem, "Representation", None)
+        if not representation:
+            return ""
+        names: List[str] = []
+        for shape in representation.Representations or []:
+            names.extend(layer_index.get(shape.id(), []))
+            for item in shape.Items or []:
+                names.extend(layer_index.get(item.id(), []))
+        return ", ".join(names)
+
     def propcheck(self) -> int:
         case_sensitive = self.rules.get("defaults", {}).get("case_sensitive", False)
         missing_policy = self.rules.get("defaults", {}).get("when_missing_property", "fail")
@@ -146,6 +159,12 @@ class PropCheckService:
                 print(f"Failed to open {fpath}: {e}")
                 continue
 
+            layer_index: Dict[int, List[str]] = {}
+            for la in model.by_type("IfcPresentationLayerAssignment"):
+                if la.Name:
+                    for item in la.AssignedItems or []:
+                        layer_index.setdefault(item.id(), []).append(la.Name)
+
             for rule in self.rules.get("rules", []):
                 rid = rule["id"]
                 title = rule["title"]
@@ -166,6 +185,7 @@ class PropCheckService:
                     if not self.matches_entity_filters(elem, filters, case_sensitive):
                         continue
                     total_objects += 1
+                    layer_names = self.element_layers(elem, layer_index)
                     for chk in checks:
                         prop = chk["property"]
                         actual_val = self.resolve_property(elem, prop, case_sensitive)
@@ -187,6 +207,7 @@ class PropCheckService:
                                 violations.append({
                                     "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                     "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
+                                    "layer": layer_names,
                                     "path": "", "property": prop,
                                     "expected": expected,
                                     "actual": actual_val, "severity": "pass"
@@ -197,6 +218,7 @@ class PropCheckService:
                             violations.append({
                                 "file": Path(fpath).name, "rule": rid, "ruleTitle": title, "entity": elem.is_a(),
                                 "globalId": getattr(elem, "GlobalId", ""), "name": getattr(elem, "Name", ""),
+                                "layer": layer_names,
                                 "path": "", "property": prop,
                                 "expected": expected,
                                 "actual": actual_val, "severity": severity
@@ -218,7 +240,7 @@ class PropCheckService:
 
         # Output CSV report
         if self.outputCsv:
-            fieldnames = ["file", "rule", "ruleTitle", "entity", "globalId", "name", "path", "property", "expected", "actual", "severity"]
+            fieldnames = ["file", "rule", "ruleTitle", "entity", "globalId", "name", "layer", "path", "property", "expected", "actual", "severity"]
             
             csvPath = os.path.join(self.outputPaths[0], reportName+".csv")
             os.makedirs(os.path.dirname(csvPath) or ".", exist_ok=True)
