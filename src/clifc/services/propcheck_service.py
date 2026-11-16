@@ -130,7 +130,7 @@ class PropCheckService:
         violations: List[Dict[str, Any]] = []
         passes_count = 0
         by_rule: Dict[str, Dict[str, Any]] = {}
-        prop_values: Dict[str, Dict[str, set]] = {}
+        prop_values: Dict[str, Dict[str, Any]] = {}
 
         for rule in self.rules.get("rules", []):
             rid, title = rule["id"], rule["title"]
@@ -139,11 +139,11 @@ class PropCheckService:
         total_objects = 0
 
         for fpath in self.ifcFilePaths:
-            print(f"[blue]Processing file:[/blue] {fpath}")
+            print(f"Processing file: {fpath}")
             try:
                 model = ifcopenshell.open(fpath)
             except Exception as e:
-                print(f"[red]Failed to open {fpath}: {e}[/red]")
+                print(f"Failed to open {fpath}: {e}")
                 continue
 
             for rule in self.rules.get("rules", []):
@@ -173,7 +173,8 @@ class PropCheckService:
 
                         by_rule[rid]["checked"] += 1
                         prop_key = f"{rid} {prop}"
-                        prop_values.setdefault(prop_key, {"pass": set(), "fail": set()})
+                        prop_values.setdefault(prop_key, {"pass": set(), "fail": set(), "has_pattern": False})
+                        prop_values[prop_key]["has_pattern"] |= "pattern" in chk
 
                         if severity is None:
                             by_rule[rid]["pass"] += 1

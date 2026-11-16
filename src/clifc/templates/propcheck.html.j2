@@ -66,8 +66,12 @@
       {% for key, vals in prop_values.items() %}
       <tr>
         <td>{{ key }}</td>
+        {% if vals.has_pattern %}
         <td>{{ vals.pass | sort | join(", ") }}</td>
         <td>{{ vals.fail | sort | join(", ") }}</td>
+        {% else %}
+        <td colspan="2">Property has no pattern requirement</td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -78,12 +82,12 @@
     <thead><tr>
       <th>File</th>
 	  <th>Rule</th>
-	  <th>Entity</th>
-	  <th>GlobalId</th>
-      <th>Name</th>
+	  <th>IfcEntity</th>
+	  <th>Entity GlobalId</th>
+      <th>Entity Name</th>
 	  <th>Property</th>
-      <th>Expected</th>
-	  <th>Actual</th>
+      <th>Expected value</th>
+	  <th>Actual value</th>
 	  <th>Severity</th>
     </tr></thead>
     <tbody>
